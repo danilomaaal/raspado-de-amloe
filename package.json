@@ -1,0 +1,17 @@
+{
+  "name": "scrapper",
+  "version": "1.0.0",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "node .\\index.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "",
+  "description": "scrapping",
+  "type": "module",
+  "dependencies": {
+    "puppeteer": "^20.8.3"
+  }
+}
