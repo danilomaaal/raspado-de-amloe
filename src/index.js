@@ -1,13 +1,12 @@
 import puppeteer from "puppeteer"
 
 async function run (){
-// start session
 
-
-let browser = await puppeteer.launch({
-    headless: false, // visible browser to debug
-    defaultViewport :null, // website page in full width and height
-})
+	// start session
+	let browser = await puppeteer.launch({
+		headless: false, // visible browser to debug
+		defaultViewport :null, // website page in full width and height
+	})
 
     try { // open page
         const page = await browser.newPage();
