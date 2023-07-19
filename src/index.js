@@ -1,4 +1,5 @@
-import puppeteer from "puppeteer"
+import puppeteer from "puppeteer";
+
 
 async function run (){
 
@@ -27,8 +28,8 @@ async function run (){
             });
             
         });
-  
-        console.log(entries);
+	    console.log(entries);
+
 
     } catch (err) {
         console.error("Failed", err);
