@@ -7,13 +7,13 @@ async function next(page) {
  }
 
 
- function sleep(milliseconds) {
-	 console.log("Now sleepig for ", (milliseconds/1000) ,"msecs");
-	 return new Promise(resolve => setTimeout(resolve, milliseconds));
+ function sleep(ms) {
+	 console.log("Now sleepig for ", (ms/1000) ,"secs");
+	 return new Promise(resolve => setTimeout(resolve, ms));
 };
 
 function waitRandomly() {
-	// select random number of millisecs to wait
+	// select random number to wait
 	return Math.floor(Math.random() * (20 - 3) + Math.random() ) * 1000;
 }
 
@@ -34,44 +34,69 @@ async function run() {
             waitUntil: "domcontentloaded"
           });
 
-	    // iterate until 131th pag starting from page 2
-	   const pags = 2;
-	   let text = [];
+	    // iterate until 131th pag
+	   const pags = 131; 
+	   let data = [];
 
-	   for (let i = 1; i <= pags; i++){ //131
+	   for (let i = 1; i <= pags; i++){
 		   console.log("Now parsing page: ", i);
 		   const entries = await page.evaluate(() => {
 			   const interventions = document.querySelectorAll(".entry-post");
 			   // generate an iterable array to get title and date for each entry
 			   return Array.from(interventions).map((entry) => {
-				   // get title and date
+				   // @ts-ignore
 				   const title = entry.querySelector(".entry-title").innerText;
+				   // @ts-ignore
 				   const date = entry.querySelector(".entry-date").innerText;
+				   // @ts-ignore
 				   const link = entry.querySelector(".entry-title a[href*='://']").href;
-				   return { title, date, link };
+				   let text ="";
+
+				   return { title, date, link, text };
 			   });
 		   });
+		   
+		   for (const entry of entries) {
+			console.log(`Now accessing: ${entry.link}`);
+	
+			await page.goto(entry.link, {
+				waitUntil: "domcontentloaded"
+			  });
+
+			entry.text = await page.evaluate(() => {
+				// @ts-ignore
+				return document.querySelector(".entry-content").innerText;
+			})
+			await sleep(waitRandomly()); // pause to avoid overloading server
+			await page.goBack();
+		   }
 
 		   console.log("Current object is: ", entries);
-
+		   
 		   next(page);
 
-		   await sleep(waitRandomly()); // pause to avoid overloading server
+		   await sleep(waitRandomly()); // pause again
 
-	           //text = Object.assign(text, entries);
-		   text.push(entries)
-		   };
+	       data.push(entries);
+		};
 
 	    // save obj to disk
-	    let textJSON = JSON.stringify(text);
+	    let JSONdata = JSON.stringify(data);
+		data = undefined;
 
-	    fs.writeFile("links.json", textJSON, "utf8", (err) => { if (err) {  console.log("Error: ", err); } else { console.log ("File saved."); } });
+	    fs.writeFile("data.json", JSONdata, "utf8", (err) => {
+			if (err) {
+				console.error("Error: ", err);
+			} else {
+				console.log ("Data saved.");
+			}
+		});
 
     } catch (err) {
-        console.error("Failed", err);
+        console.error("Failed. Something happened :(", err);
     } finally {
-	console.log("Done.")
-        await browser?.close();
+		console.log("Done.");
+		await browser?.close();
     }
 }
 
