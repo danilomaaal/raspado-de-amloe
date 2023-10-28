@@ -1,6 +1,6 @@
 # Raspado de AMLOE
  
- Este es un scraper para tomar el texto de las mañaneras transcritas en la página del Presidente López Obrador. Es bastante sencillo y de momento sólo toma los títulos, fechas, ligas y el texto en general. Identificar a los participantes y sus intervenciones probablemente requiera más trabajo.
+Este es un scraper para tomar las trasncripciones de las conferencias mañaneras del [Presidente López Obrador](https://lopezobrador.org.mx/). Es bastante sencillo y de momento sólo scrapea títulos, fechas, ligas y el texto en general. Identificar a los participantes y sus intervenciones probablemente requiera más trabajo.
 
  ## Ejecución
  
