@@ -7,7 +7,5 @@
  Es recomendable ejecutar el scraper a través de un proxy o de tor, para correrlo:
 
 ```{sh}
-
 npm run
-
 ```
