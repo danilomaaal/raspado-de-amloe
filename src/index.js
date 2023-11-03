@@ -1,3 +1,9 @@
+/*
+    01010010011000010111001101110000011000010110010001101111 0110010001100101 0100000101001101010011000100111101000101 
+	author: DM
+	license: MIT
+*/
+
 import puppeteer from "puppeteer";
 import fs from "fs";
 
@@ -22,8 +28,8 @@ async function run() {
 
 	// start session
 	let browser = await puppeteer.launch({
-		headless: false, // visible browser to debug
-		defaultViewport: null // website page in full width and height
+		headless: false,
+		defaultViewport: null
 	})
 
     try { // open page
@@ -36,7 +42,7 @@ async function run() {
             waitUntil: "domcontentloaded"
           });
 
-	    // iterate until 131th pag
+	    // iterate until 137th pag
 	   const pags = 137; 
 	   let parsedData = [];
 
@@ -61,11 +67,11 @@ async function run() {
 			   });
 		   });
 		   
-		   console.log("Current object is: ", entries);
-		   await page.waitForSelector(".tw-pagination > .older > a",{ visible: true });
+		   //console.log("Current object is: ", entries);
+		   await page.waitForSelector(".tw-pagination > .older > a", { visible: true });
 		   next(page);
 
-		   await sleep(waitRandomly()); // pause again
+		   await sleep(waitRandomly()); // pause
 
 	       parsedData.push(entries);
 		};
