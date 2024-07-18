@@ -6,7 +6,7 @@
 
 import puppeteer from "puppeteer";
 import fs from "fs";
-
+import { MongoClient } from "mongodb";
 
 async function next(page) {
 	await page.click(".tw-pagination > .older > a");
