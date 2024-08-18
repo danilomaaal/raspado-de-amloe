@@ -4,8 +4,7 @@
   "main": "index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "run": "node .\\src\\index.js",
-    "start": "node src/index.js"
+    "scrape": "node src/index.js"
   },
   "keywords": [],
   "author": "",
@@ -13,6 +12,7 @@
   "description": "scrap amlo´s interventions",
   "type": "module",
   "dependencies": {
+    "mongodb": "6.8",
     "puppeteer": "^22.13.1"
   }
 }
