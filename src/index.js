@@ -5,7 +5,6 @@
 */
 
 import puppeteer from "puppeteer";
-import fs from "fs";
 import { MongoClient } from "mongodb";
 
 async function next(page) {
@@ -26,9 +25,14 @@ function waitRandomly() {
 
 async function run() {
 
+	// create connection
+	const uri = "mongodb://localhost:27017/";
+	const client = new MongoClient(uri);
+
+
 	// start session
 	let browser = await puppeteer.launch({
-		headless: false,
+		headless: true,
 		defaultViewport: null
 	})
 
@@ -42,43 +46,53 @@ async function run() {
             waitUntil: "domcontentloaded"
           });
 
-	    // iterate until 137th pag
-	   const pags = 137; 
+		// establish db connection
+		const database = client.db("discourse");
+		const mananeras = database.collection("mananeras");
+
+	    // iterate until 155th pag
+	   const pags = 155; 
 	   let parsedData = [];
 
+	   console.log("Acquiring links and titles.");
 	   for (let i = 1; i <= pags; i++){
-		   console.log("Now parsing page: ", i);
+		
+		console.log(`Parsing data from page ${i} of ${pags}.`);
 
-		   await page.waitForSelector(".entry-post", { visible:true });
+		await page.waitForSelector(".entry-post", { visible:true });
 
-		   const entries = await page.evaluate(() => {
-			   const interventions = document.querySelectorAll(".entry-post");
-			   // generate an iterable array to get title and date for each entry
-			   return Array.from(interventions).map((entry) => {
-				   // @ts-ignore
-				   const title = entry.querySelector(".entry-title").innerText;
-				   // @ts-ignore
-				   const date = entry.querySelector(".entry-date").innerText;
-				   // @ts-ignore
-				   const link = entry.querySelector(".entry-title a[href*='://']").href;
-				   let text ="";
-
-				   return { title, date, link, text };
-			   });
+		// document to insert
+		const entries = await page.evaluate(() => {
+		const interventions = document.querySelectorAll(".entry-post");
+		   // generate an iterable array to get title and date for each entry
+		   return Array.from(interventions).map((entry) => {
+			   // @ts-ignore
+			   const title = entry.querySelector(".entry-title").innerText;
+			   // @ts-ignore
+			   const date = entry.querySelector(".entry-date").innerText;
+			   // @ts-ignore
+			   const link = entry.querySelector(".entry-title a[href*='://']").href;
+			   // empty string to be filled 
+			   let text = "";
+			   return { title, date, link, text };
 		   });
-		   
-		   //console.log("Current object is: ", entries);
-		   await page.waitForSelector(".tw-pagination > .older > a", { visible: true });
-		   next(page);
+		});
+		// store array entries in obj
+		parsedData.push(entries);		   
+		console.log("Current object is: ", entries);
 
-		   await sleep(waitRandomly()); // pause
+		// navigate next pages
+		await page.waitForSelector(".tw-pagination > .older > a", { visible: true });
+		next(page);
+		await sleep(waitRandomly());
+		}; // end of first loop
 
-	       parsedData.push(entries);
-		};
-
+		console.log("OK! A list of links has been generated.");
+		
 		for (const element of parsedData) {
-			for (const entry of element) {
-				console.log(`Now accessing: ${entry.link}`);
+			console.log("Now we'll start getting all the transcriptions.");
+			for (const entry of element) {		
+				console.log(`Accessing: ${entry.link}`);
 				
 				await page.goto(entry.link, {
 					waitUntil: "domcontentloaded"
@@ -88,31 +102,27 @@ async function run() {
 				{ visible:true,
 					timeout: 60000
 				});
-				
+				console.log("Parsing text.")
 				entry.text = await page.evaluate(() => {
 					// @ts-ignore
-					return document.querySelector(".entry-content").innerText;
-				})
+					return document.querySelector(".entry-content").innerText; // split text?
+				});
+				console.log("Done.")
+
 				await sleep(waitRandomly()); // pause to avoid overloading server
-		}
-	}
-	    // save obj to disk
-	    let JSONdata = JSON.stringify(parsedData);
-		parsedData = undefined;
-
-	    fs.writeFile("text.json", JSONdata, "utf8", (err) => {
-			if (err) {
-				console.error("Error: ", err);
-			} else {
-				console.log ("Data saved.");
 			}
-		});
-
-    } catch (err) {
-        console.error("Failed. Something happened :(", err);
+			console.log("Inserting object:", {...element}); // convert array to obj before insertion
+			const insertionResult = await mananeras.insertMany( element , { ordered: true } );
+			console.log(`${insertionResult.insertedCount} documents were inserted from text data`);
+		}
+		console.log("All data has been stored in database.")
+	
+	} catch (err) {
+        console.error("Attention! Something happened: \n", err);
     } finally {
-		console.log("Done.");
+		console.log("Done.\nNow closing browser and database clients.");
 		await browser?.close();
+		await client.close();
     }
 }
 
