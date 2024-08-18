@@ -14,7 +14,7 @@ async function next(page) {
 
 
  function sleep(ms) {
-	 console.log("Now sleepig for ", (ms/1000) ,"secs");
+	 console.log("Now sleepig for", (ms/1000), "secs.");
 	 return new Promise(resolve => setTimeout(resolve, ms));
 };
 
