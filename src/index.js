@@ -48,24 +48,29 @@ async function run() {
 
 		// establish db connection
 		const database = client.db("discourse");
-		const mananeras = database.collection("mananeras");
-
+		// set colection scrape date
+		const date = new Date();
+		let d = date.getDate();
+		let m = 1 + date.getMonth();
+		let y = date.getFullYear();
+		const mananeras = database.collection(`mananeras_${d}_${m}_${y}`);
 	    // iterate until 155th pag
-	   const pags = 155; 
-	   let parsedData = [];
+	   	const pags = 155; 
+   		let parsedData = [];
 
-	   console.log("Acquiring links and titles.");
-	   for (let i = 1; i <= pags; i++){
-		
-		console.log(`Parsing data from page ${i} of ${pags}.`);
+		console.log("Acquiring links and titles.");
+		for (let i = 1; i <= pags; i++) {
+			console.log(`Parsing data from page ${i} (of ${pags}).`);
 
-		await page.waitForSelector(".entry-post", { visible:true });
-
-		// document to insert
-		const entries = await page.evaluate(() => {
-		const interventions = document.querySelectorAll(".entry-post");
-		   // generate an iterable array to get title and date for each entry
-		   return Array.from(interventions).map((entry) => {
+			await page.waitForSelector(".entry-post",
+				{ visible:true,
+				  timeout:60000
+				});
+			// document to insert
+			const entries = await page.evaluate(() => {
+			const interventions = document.querySelectorAll(".entry-post");
+			// generate an iterable array to get title and date for each entry
+			return Array.from(interventions).map((entry) => {
 			   // @ts-ignore
 			   const title = entry.querySelector(".entry-title").innerText;
 			   // @ts-ignore
@@ -79,7 +84,7 @@ async function run() {
 		});
 		// store array entries in obj
 		parsedData.push(entries);		   
-		console.log("Current object is: ", entries);
+		console.log("Current array of objects is: ", entries);
 
 		// navigate next pages
 		await page.waitForSelector(".tw-pagination > .older > a", { visible: true });
@@ -111,7 +116,7 @@ async function run() {
 
 				await sleep(waitRandomly()); // pause to avoid overloading server
 			}
-			console.log("Inserting object:", {...element}); // convert array to obj before insertion
+			console.log("Inserting objects:", {...element}); // convert array to obj before insertion
 			const insertionResult = await mananeras.insertMany( element , { ordered: true } );
 			console.log(`${insertionResult.insertedCount} documents were inserted from text data`);
 		}
