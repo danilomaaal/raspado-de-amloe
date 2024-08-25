@@ -4,7 +4,7 @@
 	license: MIT
 */
 
-import puppeteer from "puppeteer";
+import puppeteer, { TimeoutError } from "puppeteer";
 import { MongoClient } from "mongodb";
 
 async function next(page) {
@@ -25,111 +25,182 @@ function waitRandomly() {
 
 async function run() {
 
-	// create connection
-	const uri = "mongodb://localhost:27017/";
-	const client = new MongoClient(uri);
+	// set timeouts
+	const ourTimeoutValue = 4 * 60 * 1000;
 
+	// set scrapet date
+	const curr_date = new Date();
+	
+	// create db connection
+	const uri = "mongodb://localhost:27017/";
+	const client = new MongoClient(uri);	
+	const database = client.db("discursos");
+	const mananeras = database.collection("mananeras");	
+	
+	// number of pags to parse
+	const totalPages = 156; 
+	let parsedPages = [];
+	let entries = {};
 
 	// start session
 	let browser = await puppeteer.launch({
-		headless: true,
-		defaultViewport: null
+		headless: false,
+		defaultViewport: null,
+		protocolTimeout: ourTimeoutValue,
+		args: ["--disable-features=site-per-process"]
 	})
 
     try { // open page
         const page = await browser.newPage();
 		const userAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/94.0.4606.81 Safari/537.36";
 		await page.setUserAgent(userAgent);
-        page.setDefaultNavigationTimeout(2 * 60 * 1000);
+        page.setDefaultNavigationTimeout(ourTimeoutValue);
+		page.setDefaultTimeout(ourTimeoutValue);
 
         await page.goto("https://lopezobrador.org.mx/secciones/version-estenografica/", {
             waitUntil: "domcontentloaded"
           });
-
-		// establish db connection
-		const database = client.db("discourse");
-		// set colection scrape date
-		const date = new Date();
-		let d = date.getDate();
-		let m = 1 + date.getMonth();
-		let y = date.getFullYear();
-		const mananeras = database.collection(`mananeras_${d}_${m}_${y}`);
-	    // iterate until 155th pag
-	   	const pags = 155; 
-   		let parsedData = [];
-
+		  
 		console.log("Acquiring links and titles.");
-		for (let i = 1; i <= pags; i++) {
-			console.log(`Parsing data from page ${i} (of ${pags}).`);
-
-			await page.waitForSelector(".entry-post",
-				{ visible:true,
-				  timeout:60000
-				});
-			// document to insert
-			const entries = await page.evaluate(() => {
-			const interventions = document.querySelectorAll(".entry-post");
-			// generate an iterable array to get title and date for each entry
-			return Array.from(interventions).map((entry) => {
-			   // @ts-ignore
-			   const title = entry.querySelector(".entry-title").innerText;
-			   // @ts-ignore
-			   const date = entry.querySelector(".entry-date").innerText;
-			   // @ts-ignore
-			   const link = entry.querySelector(".entry-title a[href*='://']").href;
-			   // empty string to be filled 
-			   let text = "";
-			   return { title, date, link, text };
-		   });
-		});
-		// store array entries in obj
-		parsedData.push(entries);		   
-		console.log("Current array of objects is: ", entries);
-
-		// navigate next pages
-		await page.waitForSelector(".tw-pagination > .older > a", { visible: true });
-		next(page);
-		await sleep(waitRandomly());
-		}; // end of first loop
-
-		console.log("OK! A list of links has been generated.");
-		
-		for (const element of parsedData) {
-			console.log("Now we'll start getting all the transcriptions.");
-			for (const entry of element) {		
-				console.log(`Accessing: ${entry.link}`);
+		  
+		for (let index = 1; index <= totalPages; index++) {
+			
+			console.log(`Navegating to page ${index} (of ${totalPages}).`);
+			
+			try {
+				await page.waitForSelector(".entry-post", { visible: true, timeout: ourTimeoutValue }); 
 				
-				await page.goto(entry.link, {
-					waitUntil: "domcontentloaded"
-				});
+				// @ts-ignore
+				entries = await page.evaluate(() => {
 
-				await page.waitForSelector(".entry-content", 
-				{ visible:true,
-					timeout: 60000
-				});
-				console.log("Parsing text.")
-				entry.text = await page.evaluate(() => {
+				const interventions = document.querySelectorAll(".entry-post");
+				
+				// generate an iterable array to get title and date for each entry
+				return Array.from(interventions).map((entry) => {
 					// @ts-ignore
-					return document.querySelector(".entry-content").innerText; // split text?
+					const title = entry.querySelector(".entry-title").innerText;
+					// @ts-ignore
+					const date = entry.querySelector(".entry-date").innerText;
+					// @ts-ignore
+					const link = entry.querySelector(".entry-title a[href*='://']").href;
+					// empty strings to be filled 
+					let text = "";
+					// recolection date
+					let acquisition = "";
+					return { title, date, link, text, acquisition };
 				});
-				console.log("Done.")
+				
+			});
+			
+		} catch(err) {
 
-				await sleep(waitRandomly()); // pause to avoid overloading server
+			switch ( err.name ) {
+
+				case TimeoutError:
+					 entries.title = `${err.name}. No data available from page ${index}.`;
+					 entries.date = null;
+					 entries.link = null;
+					 entries.text = null;
+					 entries.acquisition = null;
+					 continue;
+
+				case TypeError:
+					entries.title = `${err.name}. No data available from page ${index}.`;
+					entries.date = null;
+					entries.link = null;
+					entries.text = null;
+					entries.acquisition = null;
+					continue;
+					
+				default:
+					entries.title = `Default: ${err.name} at page ${index}.`;
+					entries.date = null;
+					entries.link = null;
+					entries.text = `Error call: ${err.call()}`;
+					entries.acquisition = null;
+					continue;
+				};
+
+			} finally {
+				// store objects in arr
+				parsedPages.push(entries);		   
+				console.log("Current parsed page contains: ", entries, "\n");
+				await sleep(waitRandomly());
+
+				// navigate next pages, stop when reaching the last one
+				if( index != totalPages ){
+					await page.waitForSelector(".tw-pagination > .older > a", { visible: true, timeout: ourTimeoutValue });
+					next(page);
+				}				
 			}
-			console.log("Inserting objects:", {...element}); // convert array to obj before insertion
-			const insertionResult = await mananeras.insertMany( element , { ordered: true } );
-			console.log(`${insertionResult.insertedCount} documents were inserted from text data`);
-		}
-		console.log("All data has been stored in database.")
+		}; // end of first iteration
+		console.log("OK! A list of links has been generated.");
+
+		console.log("Now we'll start getting all the transcriptions.");				
+		for (const page of parsedPages) {
+			// @ts-ignore
+			for (let entry of page) {
+				
+				if (entry.link == null) {
+					console.log("Unavailable link. Skipping to the next one.");
+					continue;				
+				} else {
+					try {
+						console.log(`Accessing: ${entry.link}`);
+						
+						await page.goto(entry.link, { waitUntil: "domcontentloaded" });
+
+						await page.waitForSelector(".entry-content", { visible: true, timeout: ourTimeoutValue });
+
+						console.log("Parsing text.");
+
+						entry.text = await page.evaluate(() => { // @ts-ignore
+							return document.querySelector(".entry-content").innerText;
+						});
+
+						// recolection date
+						entry.acquisition = `${curr_date}`;
 	
+						console.log("Done.");	
+
+						await sleep(waitRandomly()); // pause	
+					
+					} catch(err) {
+						switch ( err.name ) {
+							case TimeoutError:
+								entry.text = `${err.name}. No text available.`;
+								entry.acquisition = null;
+								continue;
+							case TypeError:
+								entry.text = `${err.name}. No text available.`;
+								entry.acquisition = null;
+								continue;
+							default:
+								console.error("Default error: \n", err);
+								entry.text = `${err.name}. No text available.`;
+								entry.acquisition = null;
+								continue;
+						};
+					} finally {
+						    const result = await mananeras.insertOne(entry);
+							console.log(`The following entry was inserted with the _id: ${result.insertedId}`);
+							console.log(entry);
+							entry = null; // delete object aftr insertion
+					};
+				};
+			}; // inner
+		}; // outer
+
+		console.log("OK! Data was saved in database.");
+
 	} catch (err) {
-        console.error("Attention! Something happened: \n", err);
+        console.error("Error: \n", err);
     } finally {
-		console.log("Done.\nNow closing browser and database clients.");
+		console.log("Now closing database client and browser.");
 		await browser?.close();
 		await client.close();
-    }
-}
+    };
+};
 
 // start
 run();
