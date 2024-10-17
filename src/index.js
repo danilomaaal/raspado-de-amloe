@@ -17,6 +17,7 @@ async function next(page) {
 	 return new Promise(resolve => setTimeout(resolve, ms));
 };
 
+
 function waitRandomly() {
 	// select random number to wait
 	return Math.floor(Math.random() * (20 - 3 + 1) + 3) * 1000;
@@ -26,10 +27,7 @@ function waitRandomly() {
 async function run() {
 
 	// set timeouts
-	const ourTimeoutValue = 4 * 60 * 1000;
-
-	// set scrapet date
-	const curr_date = new Date();
+	const ourTimeoutValue = 5 * 60 * 1000;
 	
 	// create db connection
 	const uri = "mongodb://localhost:27017/";
@@ -38,7 +36,7 @@ async function run() {
 	const mananeras = database.collection("mananeras");	
 	
 	// number of pags to parse
-	const totalPages = 156; 
+	const totalPages = 158; 
 	let parsedPages = [];
 	let entries = {};
 
@@ -47,6 +45,7 @@ async function run() {
 		headless: false,
 		defaultViewport: null,
 		protocolTimeout: ourTimeoutValue,
+		pipe: true, // workarround for "Error: Attempted to use detached Frame" see https://github.com/puppeteer/puppeteer/issues/12423
 		args: ["--disable-features=site-per-process"]
 	})
 
@@ -124,7 +123,7 @@ async function run() {
 			} finally {
 				// store objects in arr
 				parsedPages.push(entries);		   
-				console.log("Current parsed page contains: ", entries, "\n");
+				console.log("The last parsed page contained the following entries: ", entries, "\n");
 				await sleep(waitRandomly());
 
 				// navigate next pages, stop when reaching the last one
@@ -137,13 +136,14 @@ async function run() {
 		console.log("OK! A list of links has been generated.");
 
 		console.log("Now we'll start getting all the transcriptions.");				
-		for (const page of parsedPages) {
+		for (let pags of parsedPages) {
+
 			// @ts-ignore
-			for (let entry of page) {
+			for (let entry of pags) {
 				
 				if (entry.link == null) {
 					console.log("Unavailable link. Skipping to the next one.");
-					continue;				
+					continue;
 				} else {
 					try {
 						console.log(`Accessing: ${entry.link}`);
@@ -158,12 +158,12 @@ async function run() {
 							return document.querySelector(".entry-content").innerText;
 						});
 
-						// recolection date
-						entry.acquisition = `${curr_date}`;
+						// set scrape date
+						entry.acquisition = `${new Date()}`;
 	
-						console.log("Done.");	
+						console.log("Done.");
 
-						await sleep(waitRandomly()); // pause	
+						await sleep(waitRandomly()); // pause
 					
 					} catch(err) {
 						switch ( err.name ) {
@@ -185,7 +185,7 @@ async function run() {
 						    const result = await mananeras.insertOne(entry);
 							console.log(`The following entry was inserted with the _id: ${result.insertedId}`);
 							console.log(entry);
-							entry = null; // delete object aftr insertion
+							entry = undefined;
 					};
 				};
 			}; // inner
